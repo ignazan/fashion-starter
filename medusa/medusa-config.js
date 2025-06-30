@@ -5,8 +5,9 @@ loadEnv(process.env.NODE_ENV, process.cwd());
 module.exports = defineConfig({
   admin: {
     backendUrl:
-      process.env.BACKEND_URL ?? 'https://sofa-society-starter.medusajs.app',
+      process.env.BACKEND_URL,
     storefrontUrl: process.env.STOREFRONT_URL,
+    disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
   },
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -18,8 +19,21 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET || 'supersecret',
       cookieSecret: process.env.COOKIE_SECRET || 'supersecret',
     },
+    workerMode: process.env.MEDUSA_WORKER_MODE === "worker" ? "worker" : "server",
   },
   modules: [
+    {
+      resolve: '@medusajs/medusa/cache-redis',
+      options: {
+        redisUrl: process.env.REDIS_URL,
+      },
+    },
+    {
+      resolve: '@medusajs/medusa/event-bus-redis',
+      options: {
+        redisUrl: process.env.REDIS_URL,
+      },
+    },
     {
       resolve: '@medusajs/medusa/payment',
       options: {
