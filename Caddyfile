@@ -1,0 +1,3 @@
+api.emirdoner.menu {
+  reverse_proxy medusa_server:9000
+}
