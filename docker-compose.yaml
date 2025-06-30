@@ -1,0 +1,158 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    depends_on:
+      - medusa_server
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - medusa-network
+  
+  medusa_server:
+    build:
+      context: ./medusa
+      dockerfile: Dockerfile
+    environment:
+      BACKEND_URL: https://api.emirdoner.menu
+      DISABLE_MEDUSA_ADMIN: false
+      MEDUSA_WORKER_MODE: server
+    env_file: ".env"
+    container_name: medusa_server
+    hostname: medusa_server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - medusa-network
+    restart: unless-stopped
+
+  medusa_worker:
+    build:
+      context: ./medusa
+      dockerfile: Dockerfile
+    environment:
+      BACKEND_URL: https://api.emirdoner.menu
+      DISABLE_MEDUSA_ADMIN: true
+      MEDUSA_WORKER_MODE: worker
+    env_file: ".env"
+    container_name: medusa_worker
+    depends_on:
+      medusa_server:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - medusa-network
+    command: sh -c "npx medusa start"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17
+    hostname: postgres
+    restart: always
+    container_name: postgres
+    env_file: ".env"
+    command: >
+      -c ssl=on
+      -c ssl_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem
+      -c ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medusa-network
+    expose:
+      - 5432
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:alpine
+    hostname: redis
+    container_name: redis
+    env_file: ".env"
+    networks:
+      - medusa-network
+    expose:
+      - 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    ports:
+      - 9090:9000
+      - 9001:9001
+    volumes:
+      - medusa-minio-data:/data
+    environment:
+      MINIO_ROOT_USER: medusaminio
+      MINIO_ROOT_PASSWORD: medusaminio
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - medusa-network
+
+  createbuckets:
+    image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: on-failure
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 medusaminio medusaminio;
+      /usr/bin/mc mb myminio/medusa;
+      /usr/bin/mc anonymous set public myminio/medusa;
+      exit 0;
+      "
+    networks:
+      - medusa-network
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    ports:
+      - 7700:7700
+    volumes:
+      - meili-data:/meili_data
+    environment:
+      MEILI_MASTER_KEY: yoursecretmasterkey
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:7700/health']
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - medusa-network
+  
+volumes:
+  db-data:
+  medusa-minio-data:
+  meili-data:
+  uploads:
+  caddy_data:
+  caddy_config:
+
+networks:
+  medusa-network:
