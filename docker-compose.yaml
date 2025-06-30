@@ -20,7 +20,7 @@ services:
       context: ./medusa
       dockerfile: Dockerfile
     environment:
-      BACKEND_URL: https://api.emirdoner.menu
+      BACKEND_URL: https://emirdoner.menu
       DISABLE_MEDUSA_ADMIN: false
       MEDUSA_WORKER_MODE: server
     env_file: ".env"
@@ -40,7 +40,7 @@ services:
       context: ./medusa
       dockerfile: Dockerfile
     environment:
-      BACKEND_URL: https://api.emirdoner.menu
+      BACKEND_URL: https://emirdoner.menu
       DISABLE_MEDUSA_ADMIN: true
       MEDUSA_WORKER_MODE: worker
     env_file: ".env"
